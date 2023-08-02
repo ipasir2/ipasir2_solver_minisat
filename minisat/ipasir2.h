@@ -351,7 +351,7 @@ IPASIR_API ipasir2_errorcode ipasir2_val(void* solver, int32_t lit, int32_t* res
  * Required state: UNSAT
  * State after: UNSAT
  */
-IPASIR_API ipasir2_errorcode ipasir2_failed(void* solver, int32_t lit, int* result);
+IPASIR_API ipasir2_errorcode ipasir2_failed(void* solver, int32_t lit, int32_t* result);
 
 /**
  * @brief Set a callback function used to indicate a termination requirement to the solver.

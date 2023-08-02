@@ -28,8 +28,8 @@ class SolverWrapper {
         while (abs(lit) > solver->nVars()) {
             (void)solver->newVar();
         }
-        if (abs(lit) > is_failed_assumption.size()) {
-            is_failed_assumption.resize(abs(lit), 0);
+        if (abs(lit)*2 > is_failed_assumption.size()) {
+            is_failed_assumption.resize(abs(lit)*2, 0);
         }
     }
 
@@ -73,6 +73,7 @@ public:
     int solve() {
         Minisat::lbool res = solver->solveLimited(assumptions);
         assumptions.clear();
+        std::fill(is_failed_assumption.begin(), is_failed_assumption.end(), 0);
 
         if (res == l_True) {
             state = STATE_SAT;
@@ -80,16 +81,17 @@ public:
         } 
         else if (res == l_False) {
             for (int i = 0; i < solver->conflict.size(); i++) {
-                int failed = Minisat::var(solver->conflict[i]);
-                is_failed_assumption[failed] = 1;
+                Minisat::Lit failed = solver->conflict[i];
+                is_failed_assumption[failed.x] = 1;
             }
             state = STATE_UNSAT;
             return 20;
         } 
-        else {
+        else if (res == l_Undef) {
             state = STATE_INPUT;
             return 0;
         }
+        return -1;
     }
 
     int val(int32_t lit) {
@@ -104,8 +106,7 @@ public:
         if (state != STATE_UNSAT) {
             return 0;
         }
-        int v = Minisat::var(toMinisatLit(lit));
-        return is_failed_assumption[v];
+        return is_failed_assumption[toMinisatLit(-lit).x];
     }
 
     void setTermCallback(void* state, int (*terminate)(void* state)) {
@@ -159,6 +160,9 @@ extern "C" {
 
     ipasir2_errorcode ipasir2_solve(void* solver, int32_t* status) {
         *status = ((SolverWrapper*)solver)->solve();
+        if (*status == -1) {
+            return IPASIR_E_UNKNOWN;
+        }        
         return IPASIR_E_OK;
     }
 
