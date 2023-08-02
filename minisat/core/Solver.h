@@ -56,6 +56,18 @@ public:
     bool    addClause_(      vec<Lit>& ps);                     // Add a clause to the solver without making superflous internal copy. Will
                                                                 // change the passed vector 'ps'.
 
+    // IPASIR:
+    //
+    void setTermCallback(void* state, int (*terminate)(void* state)) {
+        termCallback = terminate;
+        termCallbackState = state;
+    }
+
+    void setLearnCallback(void* state, void (*learned)(void* state, int* clause)) {
+        learnCallback = learned;
+        learnCallbackState = state;
+    }
+
     // Solving:
     //
     bool    simplify     ();                        // Removes already satisfied clauses.
@@ -236,6 +248,25 @@ protected:
     int64_t             propagation_budget; // -1 means no budget.
     bool                asynch_interrupt;
 
+    // IPASIR
+    int (*termCallback)(void* state);
+    void* termCallbackState;
+
+    void (*learnCallback)(void* state, int* clause);
+    void* learnCallbackState;
+    int* learnCallbackBuffer;
+    int learnCallbackBufferSize;
+
+    void ensureLearnCallbackBufferSize() {
+        if (learnCallback != NULL && learnCallbackBufferSize < nVars()) {
+            if (learnCallbackBuffer != NULL) {
+                free(learnCallbackBuffer);
+            }
+            learnCallbackBuffer = (int*)calloc(nVars(), sizeof(int));
+            learnCallbackBufferSize = nVars();
+        }
+    }
+
     // Main internal methods:
     //
     void     insertVarOrder   (Var x);                                                 // Insert a variable in the decision order priority queue.
@@ -372,7 +403,7 @@ inline void     Solver::interrupt(){ asynch_interrupt = true; }
 inline void     Solver::clearInterrupt(){ asynch_interrupt = false; }
 inline void     Solver::budgetOff(){ conflict_budget = propagation_budget = -1; }
 inline bool     Solver::withinBudget() const {
-    return !asynch_interrupt &&
+    return !asynch_interrupt && (termCallback == NULL || 0 == termCallback(termCallbackState)) &&
            (conflict_budget    < 0 || conflicts < (uint64_t)conflict_budget) &&
            (propagation_budget < 0 || propagations < (uint64_t)propagation_budget); }
 

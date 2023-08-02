@@ -52,7 +52,6 @@ static IntOption     opt_min_learnts_lim   (_cat, "min-learnts", "Minimum learnt
 
 
 Solver::Solver() :
-
     // Parameters (user settable):
     //
     verbosity        (0)
@@ -101,11 +100,21 @@ Solver::Solver() :
   , conflict_budget    (-1)
   , propagation_budget (-1)
   , asynch_interrupt   (false)
+    // IPASIR
+  , termCallback       (NULL)
+  , termCallbackState  (NULL)
+  , learnCallback      (NULL)
+  , learnCallbackState (NULL)
+  , learnCallbackBuffer(NULL)
+  , learnCallbackBufferSize(0)
 {}
 
 
 Solver::~Solver()
 {
+    if (learnCallbackBuffer != NULL) {
+        free(learnCallbackBuffer);
+    }
 }
 
 
@@ -707,6 +716,8 @@ lbool Solver::search(int nof_conflicts)
     vec<Lit>    learnt_clause;
     starts++;
 
+    ensureLearnCallbackBufferSize();
+
     for (;;){
         CRef confl = propagate();
         if (confl != CRef_Undef){
@@ -717,6 +728,15 @@ lbool Solver::search(int nof_conflicts)
             learnt_clause.clear();
             analyze(confl, learnt_clause, backtrack_level);
             cancelUntil(backtrack_level);
+
+            if (learnCallback != 0) {
+                for (int i = 0; i < learnt_clause.size(); i++) {
+                    Lit lit = learnt_clause[i];
+                    learnCallbackBuffer[i] = sign(lit) ? -(var(lit)+1) : (var(lit)+1);
+                }
+                learnCallbackBuffer[learnt_clause.size()] = 0;
+                learnCallback(learnCallbackState, learnCallbackBuffer);
+            }
 
             if (learnt_clause.size() == 1){
                 uncheckedEnqueue(learnt_clause[0]);
