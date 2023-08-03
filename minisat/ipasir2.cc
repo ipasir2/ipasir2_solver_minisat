@@ -145,7 +145,7 @@ extern "C" {
         return IPASIR_E_OK;
     }
 
-    ipasir2_errorcode ipasir2_set_option(void* solver, const char* name, const char* value) {
+    ipasir2_errorcode ipasir2_set_option(void* solver, const char* name, ipasir2_option_value value) {
         return IPASIR_E_OPTION_UNKNOWN;
     }
 

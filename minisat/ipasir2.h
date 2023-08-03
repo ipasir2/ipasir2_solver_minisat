@@ -85,7 +85,7 @@ typedef enum ipasir2_errorcode {
   IPASIR_E_OUT_OF_TIME = 4,
   IPASIR_E_OUT_OF_MEM = 5,
   IPASIR_E_OPTION_UNKNOWN = 6,
-  IPASIR_E_INVALID_CONFIG = 7
+  IPASIR_E_OPTION_INVALID_VALUE = 7
 } ipasir2_errorcode;
 
 
@@ -122,6 +122,12 @@ typedef enum ipasir2_option_type {
     INT = 0,
     FLOAT = 1
 } ipasir2_option_type;
+
+typedef union ipasir2_option_value {
+    int _int;
+    float _flt;
+} ipasir2_option_value;
+
 typedef struct ipasir2_option {
     /// identifier for the option
     char const* name;
@@ -130,10 +136,10 @@ typedef struct ipasir2_option {
     ipasir2_option_type type;
 
     /// @brief minimum value
-    union { int _int; float _flt; } minimum;
+    ipasir2_option_value min;
 
     /// @brief maximum value
-    union { int _int; float _flt; } maximum;
+    ipasir2_option_value max;
 } ipasir2_option;
 
 
@@ -169,7 +175,28 @@ IPASIR_API ipasir2_errorcode ipasir2_options(void* solver, ipasir2_option const*
  * Required state: INPUT or SAT or UNSAT
  * State after: INPUT
  */
-IPASIR_API ipasir2_errorcode ipasir2_set_option(void* solver, char const* name, void const* value);
+IPASIR_API ipasir2_errorcode ipasir2_set_option(void* solver, char const* name, ipasir2_option_value value);
+
+
+/**
+ * @brief Asynchronous Import of Learned Clauses
+ * 
+ * Set a callback which the internal solver may call while inside ipasir2_solve for importing redundant clauses (like “consume” in Lingeling). 
+ * The application has the responsibility to appropriately buffer redundant clauses until the solver decides to import (some of) them via the defined callback. 
+ * 
+ * Effect of Callback:
+ *  - literals* points to the next learned clause (zero-terminated like in ipasir2_set_learn and ipasir2_add)
+ *  - literals* points to nullptr if there is no clause to consume
+ * 
+ * @param solver SAT solver
+ * @param callback Callback function
+ * @param data State object passed to callback function
+ * @return ipasir2_errorcode
+ * 
+ * Required state: INPUT or SAT or UNSAT
+ * State after: INPUT or SAT or UNSAT
+ */
+IPASIR_API ipasir2_errorcode ipasir2_set_import_redundant_clause(void* solver, void* data, void (*import)(void* data, int** literals));
 
 
 /**
@@ -351,7 +378,7 @@ IPASIR_API ipasir2_errorcode ipasir2_val(void* solver, int32_t lit, int32_t* res
  * Required state: UNSAT
  * State after: UNSAT
  */
-IPASIR_API ipasir2_errorcode ipasir2_failed(void* solver, int32_t lit, int32_t* result);
+IPASIR_API ipasir2_errorcode ipasir2_failed(void* solver, int32_t lit, int* result);
 
 /**
  * @brief Set a callback function used to indicate a termination requirement to the solver.
@@ -404,30 +431,7 @@ IPASIR_API ipasir2_errorcode ipasir2_set_terminate(void* solver, void* data, int
  * Required state: INPUT or SAT or UNSAT
  * State after: INPUT or SAT or UNSAT
  */
-IPASIR_API ipasir2_errorcode ipasir2_set_learn(void* solver, void* data, void (*callback)(void* data, int32_t* clause));
-
-
-/**
- * @brief Asynchronous Import of Learned Clauses
- * 
- * Set a callback which the internal solver may call while inside ipasir2_solve for importing redundant clauses (like “consume” in Lingeling). 
- * The application has the responsibility to appropriately buffer redundant clauses until the solver decides to import (some of) them via the defined callback. 
- * 
- * Effect of Callback:
- *  - literals* points to the next learned clause (zero-terminated like in ipasir2_set_learn and ipasir2_add)
- *  - literals* points to nullptr if there is no clause to consume
- *  - meta-data* points to the glue value (or sth. else?) of the returned clause (0 < glue <= size); sth. like quality or weight
- *  - Both data* and meta-data* pointers must be valid until the callback is called again or the solver returns from solve
- * 
- * @param solver SAT solver
- * @param callback Callback function
- * @param state State object passed to callback function
- * @return ipasir2_errorcode
- * 
- * Required state: INPUT or SAT or UNSAT
- * State after: INPUT or SAT or UNSAT
- */
-IPASIR_API ipasir2_errorcode ipasir2_set_import_redundant_clause(void* solver, void* data, void (*callback)(void* data, int32_t** literals));
+IPASIR_API ipasir2_errorcode ipasir2_set_learn(void* solver, void* data, void (*learned)(void* data, int32_t* clause));
 
 #ifdef __cplusplus
 }  // closing extern "C"
