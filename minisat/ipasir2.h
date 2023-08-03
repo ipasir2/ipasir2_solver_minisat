@@ -12,6 +12,8 @@
 
 #include <stdint.h>
 
+#define IPASIR_SHARED_LIB
+
 /*
  * In this header, the macro IPASIR_API is defined as follows:
  * - if IPASIR_SHARED_LIB is not defined, then IPASIR_API is defined, but empty.
