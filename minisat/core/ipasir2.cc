@@ -3,7 +3,7 @@
 
 #include <vector>
 
-#include "core/Solver.h"
+#include "Solver.h"
 
 #define l_True (Minisat::lbool((uint8_t)0))
 #define l_False (Minisat::lbool((uint8_t)1))
@@ -183,7 +183,7 @@ extern "C" {
     }
 
     // TODO
-    ipasir2_errorcode ipasir2_assignment(void* solver, int32_t* assignment) {
+    ipasir2_errorcode ipasir2_assignment(void* solver, int32_t index, int32_t* assignment) {
         return IPASIR_E_UNSUPPORTED;
     }
 
