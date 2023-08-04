@@ -117,6 +117,7 @@ public:
 
     // Resource contraints:
     //
+    void    setDecisionBudget(int64_t x);
     void    setConfBudget(int64_t x);
     void    setPropBudget(int64_t x);
     void    budgetOff();
@@ -244,6 +245,7 @@ protected:
 
     // Resource contraints:
     //
+    int64_t             decision_budget;    // -1 means no budget.
     int64_t             conflict_budget;    // -1 means no budget.
     int64_t             propagation_budget; // -1 means no budget.
     bool                asynch_interrupt;
@@ -397,13 +399,15 @@ inline void     Solver::setDecisionVar(Var v, bool b)
     decision[v] = b;
     insertVarOrder(v);
 }
+inline void     Solver::setDecisionBudget (int64_t x){ decision_budget    = decisions    + x; }
 inline void     Solver::setConfBudget(int64_t x){ conflict_budget    = conflicts    + x; }
 inline void     Solver::setPropBudget(int64_t x){ propagation_budget = propagations + x; }
 inline void     Solver::interrupt(){ asynch_interrupt = true; }
 inline void     Solver::clearInterrupt(){ asynch_interrupt = false; }
-inline void     Solver::budgetOff(){ conflict_budget = propagation_budget = -1; }
+inline void     Solver::budgetOff(){ conflict_budget = decision_budget = propagation_budget = -1; }
 inline bool     Solver::withinBudget() const {
     return !asynch_interrupt && (termCallback == NULL || 0 == termCallback(termCallbackState)) &&
+           (decision_budget    < 0 || decisions    < (uint64_t)decision_budget) &&
            (conflict_budget    < 0 || conflicts < (uint64_t)conflict_budget) &&
            (propagation_budget < 0 || propagations < (uint64_t)propagation_budget); }
 

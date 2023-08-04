@@ -116,6 +116,14 @@ public:
     void setLearnCallback(void* state, void (*learned)(void* state, int32_t* clause)) {
         solver->setLearnCallback(state, learned);
     }
+
+    void setDecisionsLimit(int limit) {
+        solver->setDecisionBudget(limit);
+    }
+
+    void setConflictsLimit(int limit) {
+        solver->setConfBudget(limit);
+    }
 };
 
 extern "C" {
@@ -139,13 +147,26 @@ extern "C" {
     }
 
     ipasir2_errorcode ipasir2_options(void* solver, ipasir2_option const** options) {
-        ipasir2_option* solver_options = new ipasir2_option[1];
-        solver_options[0] = { nullptr, INT, 0, 0 };
+        ipasir2_option* solver_options = new ipasir2_option[3];
+        solver_options[0] = { "ipasir.limits.decisions", ipasir2_option_type::INT, -1, INT32_MAX };
+        solver_options[1] = { "ipasir.limits.conflicts", ipasir2_option_type::INT, -1, INT32_MAX };
+        solver_options[2] = { 0 };
         *options = solver_options;
         return IPASIR_E_OK;
     }
 
     ipasir2_errorcode ipasir2_set_option(void* solver, const char* name, ipasir2_option_value value) {
+        if (!strcmp(name, "ipasir.limits.decisions")) {
+            ((SolverWrapper*)solver)->setDecisionsLimit(value._int);
+            return IPASIR_E_OK;
+        } 
+        else if (!strcmp(name, "ipasir.limits.conflicts")) {
+            ((SolverWrapper*)solver)->setConflictsLimit(value._int);
+            return IPASIR_E_OK;
+        }
+        else {
+            return IPASIR_E_OPTION_UNKNOWN;
+        }
         return IPASIR_E_OPTION_UNKNOWN;
     }
 
