@@ -140,7 +140,7 @@ extern "C" {
 
     ipasir2_errorcode ipasir2_options(void* solver, ipasir2_option const** options) {
         ipasir2_option* solver_options = new ipasir2_option[1];
-        solver_options[1] = { 0 };
+        solver_options[1] = { nullptr, INT, 0, 0 };
         *options = solver_options;
         return IPASIR_E_OK;
     }
