@@ -63,7 +63,7 @@ public:
         termCallbackState = state;
     }
 
-    void setLearnCallback(void* state, void (*learned)(void* state, int* clause)) {
+    void setLearnCallback(void* state, void (*learned)(void* state, int const* clause)) {
         learnCallback = learned;
         learnCallbackState = state;
     }
@@ -254,7 +254,7 @@ protected:
     int (*termCallback)(void* state);
     void* termCallbackState;
 
-    void (*learnCallback)(void* state, int* clause);
+    void (*learnCallback)(void* state, int const* clause);
     void* learnCallbackState;
     int* learnCallbackBuffer;
     int learnCallbackBufferSize;
