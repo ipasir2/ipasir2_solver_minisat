@@ -18,11 +18,7 @@ class SolverWrapper {
 
     std::vector<uint8_t> is_failed_assumption;
 
-    enum solver_state {
-        STATE_INPUT,
-        STATE_SAT,
-        STATE_UNSAT
-    } state;
+    ipasir2_state state;
 
     void createVarIfNotExists(int32_t lit) {
         while (abs(lit) > solver->nVars()) {
@@ -38,7 +34,7 @@ class SolverWrapper {
     }
     
 public:
-    SolverWrapper() : assumptions(), clause(), is_failed_assumption(), state(STATE_INPUT) {
+    SolverWrapper() : assumptions(), clause(), is_failed_assumption(), state(IPASIR2_STATE_INPUT) {
         solver = new Minisat::Solver();
     }
 
@@ -47,10 +43,10 @@ public:
     }
 
     void add(int32_t lit) {
-        if (state == STATE_UNSAT) {
+        if (state == IPASIR2_STATE_UNSAT) {
             std::fill(is_failed_assumption.begin(), is_failed_assumption.end(), 0);
         }
-        state = STATE_INPUT;
+        state = IPASIR2_STATE_INPUT;
         createVarIfNotExists(lit);
         if (lit == 0) {
             solver->addClause(clause);
@@ -62,10 +58,10 @@ public:
     }
 
     void assume(int32_t lit) {
-        if (state == STATE_UNSAT) {
+        if (state == IPASIR2_STATE_UNSAT) {
             std::fill(is_failed_assumption.begin(), is_failed_assumption.end(), 0);
         }
-        state = STATE_INPUT;
+        state = IPASIR2_STATE_INPUT;
         createVarIfNotExists(lit);
         assumptions.push(toMinisatLit(lit));
     }
@@ -76,7 +72,7 @@ public:
         std::fill(is_failed_assumption.begin(), is_failed_assumption.end(), 0);
 
         if (res == l_True) {
-            state = STATE_SAT;
+            state = IPASIR2_STATE_SAT;
             return 10;
         } 
         else if (res == l_False) {
@@ -84,18 +80,18 @@ public:
                 Minisat::Lit failed = solver->conflict[i];
                 is_failed_assumption[failed.x] = 1;
             }
-            state = STATE_UNSAT;
+            state = IPASIR2_STATE_UNSAT;
             return 20;
         } 
         else if (res == l_Undef) {
-            state = STATE_INPUT;
+            state = IPASIR2_STATE_INPUT;
             return 0;
         }
         return -1;
     }
 
     int val(int32_t lit) {
-        if (state != STATE_SAT) {
+        if (state != IPASIR2_STATE_SAT) {
             return 0;
         }
         Minisat::lbool res = solver->modelValue(toMinisatLit(lit));
@@ -103,7 +99,7 @@ public:
     }
 
     int failed(int32_t lit) {
-        if (state != STATE_UNSAT) {
+        if (state != IPASIR2_STATE_UNSAT) {
             return 0;
         }
         return is_failed_assumption[toMinisatLit(-lit).x];
