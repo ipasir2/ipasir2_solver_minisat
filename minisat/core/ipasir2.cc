@@ -1,9 +1,11 @@
 // #define __STDC_LIMIT_MACROS
 // #define __STDC_FORMAT_MACROS
 
-#include <vector>
 
+#include <vector>
 #include "Solver.h"
+#include "ipasir2.h"
+
 
 #define l_True (Minisat::lbool((uint8_t)0))
 #define l_False (Minisat::lbool((uint8_t)1))
@@ -123,7 +125,6 @@ public:
 };
 
 extern "C" {
-    #include "ipasir2.h"
 
     static const char* sig = "Minisat 2.2.0";
 
