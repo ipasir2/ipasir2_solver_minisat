@@ -63,9 +63,10 @@ public:
         termCallbackState = state;
     }
 
-    void setLearnCallback(void* state, void (*learned)(void* state, int const* clause)) {
+    void setLearnCallback(void* state, int32_t max_length, void (*learned)(void* state, int const* clause)) {
         learnCallback = learned;
         learnCallbackState = state;
+        learnCallbackMaxSize = max_length;
     }
 
     // Solving:
@@ -258,14 +259,24 @@ protected:
     void* learnCallbackState;
     int* learnCallbackBuffer;
     int learnCallbackBufferSize;
+    int learnCallbackMaxSize;
 
     void ensureLearnCallbackBufferSize() {
-        if (learnCallback != NULL && learnCallbackBufferSize < nVars()) {
-            if (learnCallbackBuffer != NULL) {
-                free(learnCallbackBuffer);
+        if (learnCallback != NULL) {
+            if (learnCallbackMaxSize >= 0 && learnCallbackMaxSize > learnCallbackBufferSize) {
+                learnCallbackBufferSize = learnCallbackMaxSize;
+                if (learnCallbackBuffer != NULL) {
+                    free(learnCallbackBuffer);
+                }
+                learnCallbackBuffer = (int*)calloc(learnCallbackBufferSize, sizeof(int));
             }
-            learnCallbackBuffer = (int*)calloc(nVars(), sizeof(int));
-            learnCallbackBufferSize = nVars();
+            else if (learnCallbackBufferSize < nVars()) {
+                if (learnCallbackBuffer != NULL) {
+                    free(learnCallbackBuffer);
+                }
+                learnCallbackBuffer = (int*)calloc(nVars(), sizeof(int));
+                learnCallbackBufferSize = nVars();
+            }
         }
     }
 

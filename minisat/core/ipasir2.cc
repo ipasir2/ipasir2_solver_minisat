@@ -36,7 +36,7 @@ class SolverWrapper {
     }
     
 public:
-    SolverWrapper() : assumptions(), clause(), is_failed_assumption(), state(IPASIR2_STATE_INPUT) {
+    SolverWrapper() : assumptions(), clause(), is_failed_assumption(), state(IPASIR2_S_INPUT) {
         solver = new Minisat::Solver();
     }
 
@@ -45,10 +45,10 @@ public:
     }
 
     void add(int32_t lit) {
-        if (state == IPASIR2_STATE_UNSAT) {
+        if (state == IPASIR2_S_UNSAT) {
             std::fill(is_failed_assumption.begin(), is_failed_assumption.end(), 0);
         }
-        state = IPASIR2_STATE_INPUT;
+        state = IPASIR2_S_INPUT;
         createVarIfNotExists(lit);
         if (lit == 0) {
             solver->addClause(clause);
@@ -60,10 +60,10 @@ public:
     }
 
     void assume(int32_t lit) {
-        if (state == IPASIR2_STATE_UNSAT) {
+        if (state == IPASIR2_S_UNSAT) {
             std::fill(is_failed_assumption.begin(), is_failed_assumption.end(), 0);
         }
-        state = IPASIR2_STATE_INPUT;
+        state = IPASIR2_S_INPUT;
         createVarIfNotExists(lit);
         assumptions.push(toMinisatLit(lit));
     }
@@ -74,7 +74,7 @@ public:
         std::fill(is_failed_assumption.begin(), is_failed_assumption.end(), 0);
 
         if (res == l_True) {
-            state = IPASIR2_STATE_SAT;
+            state = IPASIR2_S_SAT;
             return 10;
         } 
         else if (res == l_False) {
@@ -82,18 +82,18 @@ public:
                 Minisat::Lit failed = solver->conflict[i];
                 is_failed_assumption[failed.x] = 1;
             }
-            state = IPASIR2_STATE_UNSAT;
+            state = IPASIR2_S_UNSAT;
             return 20;
         } 
         else if (res == l_Undef) {
-            state = IPASIR2_STATE_INPUT;
+            state = IPASIR2_S_INPUT;
             return 0;
         }
         return -1;
     }
 
     int val(int32_t lit) {
-        if (state != IPASIR2_STATE_SAT) {
+        if (state != IPASIR2_S_SAT) {
             return 0;
         }
         Minisat::lbool res = solver->modelValue(toMinisatLit(lit));
@@ -101,7 +101,7 @@ public:
     }
 
     int failed(int32_t lit) {
-        if (state != IPASIR2_STATE_UNSAT) {
+        if (state != IPASIR2_S_UNSAT) {
             return 0;
         }
         return is_failed_assumption[toMinisatLit(-lit).x];
@@ -111,8 +111,8 @@ public:
         solver->setTermCallback(state, terminate);
     }
 
-    void setLearnCallback(void* state, void (*learned)(void* state, int32_t const* clause)) {
-        solver->setLearnCallback(state, learned);
+    void setLearnCallback(void* state, int32_t max_size, void (*learned)(void* state, int32_t const* clause)) {
+        solver->setLearnCallback(state, max_size, learned);
     }
 
     void setDecisionsLimit(int limit) {
@@ -130,94 +130,89 @@ extern "C" {
 
     ipasir2_errorcode ipasir2_signature(const char** signature) {
         *signature = sig;
-        return IPASIR_E_OK;
+        return IPASIR2_E_OK;
     }
 
     ipasir2_errorcode ipasir2_init(void** solver) {
         *solver = (void*)new SolverWrapper();
-        return IPASIR_E_OK;
+        return IPASIR2_E_OK;
     }
 
     ipasir2_errorcode ipasir2_release(void* solver) {
         delete (SolverWrapper*)solver;
-        return IPASIR_E_OK;
+        return IPASIR2_E_OK;
     }
 
     ipasir2_errorcode ipasir2_options(void* solver, ipasir2_option const** options) {
         ipasir2_option* solver_options = new ipasir2_option[3];
-        solver_options[0] = { "ipasir.limits.decisions", -1, INT32_MAX, IPASIR2_STATE_INPUT, false };
-        solver_options[1] = { "ipasir.limits.conflicts", -1, INT32_MAX, IPASIR2_STATE_INPUT, false };
+        solver_options[0] = { "ipasir.limits.decisions", -1, INT32_MAX, IPASIR2_S_INPUT, false, false };
+        solver_options[1] = { "ipasir.limits.conflicts", -1, INT32_MAX, IPASIR2_S_INPUT, false, false };
         solver_options[2] = { 0 };
         *options = solver_options;
-        return IPASIR_E_OK;
+        return IPASIR2_E_OK;
     }
 
-    ipasir2_errorcode ipasir2_set_option(void* solver, const char* name, int64_t value) {
+    ipasir2_errorcode ipasir2_set_option(void* solver, const char* name, int64_t index, int64_t value) {
         if (!strcmp(name, "ipasir.limits.decisions")) { // TODO: per option: bounds check, return error on incorrect values
             ((SolverWrapper*)solver)->setDecisionsLimit(value);
-            return IPASIR_E_OK;
+            return IPASIR2_E_OK;
         } 
         else if (!strcmp(name, "ipasir.limits.conflicts")) {
             ((SolverWrapper*)solver)->setConflictsLimit(value);
-            return IPASIR_E_OK;
+            return IPASIR2_E_OK;
         }
         else {
-            return IPASIR_E_OPTION_UNKNOWN;
+            return IPASIR2_E_OPTION_UNKNOWN;
         }
-        return IPASIR_E_OPTION_UNKNOWN;
+        return IPASIR2_E_OPTION_UNKNOWN;
     }
 
     ipasir2_errorcode ipasir2_add(void* solver, int32_t lit_or_zero) {
         ((SolverWrapper*)solver)->add(lit_or_zero);
-        return IPASIR_E_OK;
+        return IPASIR2_E_OK;
     }
 
     ipasir2_errorcode ipasir2_assume(void* solver, int32_t lit) {
         ((SolverWrapper*)solver)->assume(lit);
-        return IPASIR_E_OK;
+        return IPASIR2_E_OK;
     }
 
     ipasir2_errorcode ipasir2_solve(void* solver, int32_t* status) {
         *status = ((SolverWrapper*)solver)->solve();
         if (*status == -1) {
-            return IPASIR_E_UNKNOWN;
+            return IPASIR2_E_UNKNOWN;
         }        
-        return IPASIR_E_OK;
+        return IPASIR2_E_OK;
     }
 
     ipasir2_errorcode ipasir2_val(void* solver, int32_t lit, int32_t* val) {
         *val = ((SolverWrapper*)solver)->val(lit);
-        return IPASIR_E_OK;
+        return IPASIR2_E_OK;
     }
 
     ipasir2_errorcode ipasir2_failed(void* solver, int32_t lit, int32_t* failed) {
         *failed = ((SolverWrapper*)solver)->failed(lit);
-        return IPASIR_E_OK;
+        return IPASIR2_E_OK;
     }
 
     ipasir2_errorcode ipasir2_set_terminate(void* solver, void* state, int (*terminate)(void* state)) {
         ((SolverWrapper*)solver)->setTermCallback(state, terminate);
-        return IPASIR_E_OK;
+        return IPASIR2_E_OK;
     }
 
-    ipasir2_errorcode ipasir2_set_learn(void* solver, void* state, 
+    ipasir2_errorcode ipasir2_set_export(void* solver, void* state, int32_t max_length,
             void (*learned)(void* state, int32_t const* clause)) {
-        ((SolverWrapper*)solver)->setLearnCallback(state, learned);
-        return IPASIR_E_OK;
+        ((SolverWrapper*)solver)->setLearnCallback(state, max_length, learned);
+        return IPASIR2_E_OK;
     }
 
-    ipasir2_errorcode ipasir2_set_notify_assignment(void* solver, void* data, 
-            void (*notify)(void* data, int32_t const* assigned, int32_t const* backtrack, int8_t const* is_decision)) {
-        return IPASIR_E_UNSUPPORTED;
-    }
-
-    ipasir2_errorcode ipasir2_set_import_redundant_clause(void* solver, void* data, 
+    ipasir2_errorcode ipasir2_set_import(void* solver, void* data, ipasir2_pledge pledge,
             int32_t const* (*import)(void* data)) {
-        return IPASIR_E_UNSUPPORTED;
+        return IPASIR2_E_UNSUPPORTED;
     }
 
-    ipasir2_errorcode ipasir2_set_import_irredundant_clause(void* solver, void* data, 
-            int32_t* allowed, int32_t const* (*import)(void* data)) {
-        return IPASIR_E_UNSUPPORTED;
+    ipasir2_errorcode ipasir2_set_notify(void* solver, void* data, 
+            void (*notify)(void* data, int32_t const* assigned, int32_t const* unassigned)) {
+        return IPASIR2_E_UNSUPPORTED;
     }
 };
