@@ -92,18 +92,18 @@ typedef enum ipasir2_state {
  * 
  * IPASIR-2 specifies three kinds of pledges for the import clause callback:
  * 
- * - Equivalence: F |= F and C
+ * - Equivalence: F |= F, C
  *      This means clauses are expected to be entailed by the formula such that F is equivalent to F and C.
- * - Implying: F and C |= F
+ * - Equisatisfiable: F, C and F are equisatisfiable
  *      In particular, this mode allows to import blocked clauses and blocked sets
  * - None: 
  *      This means the solver must be able to deal with any kind of clause even those changing the satisfiability of the formula.
  * 
  */
 typedef enum ipasir2_pledge {
-    IPASIR2_P_EQIV = 0, // equivalence pledge
-    IPASIR2_P_IMPL = 1, // implicant pledge
-    IPASIR2_P_NONE = 2, // solver expects nothing
+    IPASIR2_P_EQIV = 0, // imported clause is equivalence preserving
+    IPASIR2_P_IMPL = 1, // imported clause is satisfiability preserving
+    IPASIR2_P_NONE = 2, // imported clause could be anything
 } ipasir2_pledge;
 
 
@@ -115,14 +115,6 @@ typedef enum ipasir2_pledge {
  * The IPASIR-2 specification reserves the namespace "ipasir." for options defined by the IPASIR-2 specification.
  * If a solver provides an option from the "ipasir." namespace, its behavior must be as specified in the IPASIR-2 specification.
  * If a solver does not support a given option, it must return IPASIR2_E_OPTION_UNKNOWN when the option is set.
- * 
- * max_state specifies the maximal ipasir-state the option is allowed to be set.
- *  - IPASIR2_S_CONFIG:
- *      the option can only be set in the configuration state.
- *  - IPASIR2_S_INPUT / IPASIR2_S_SAT / IPASIR2_S_UNSAT:
- *      the option can be set in INPUT, SAT and UNSAT states, and in CONFIG state.
- *  - IPASIR2_S_SOLVING:
- *      the option can be set in any state, even in SOLVING state from a callback.
  * 
  */
 typedef struct ipasir2_option {
@@ -193,7 +185,7 @@ IPASIR_API ipasir2_errorcode ipasir2_release(void* solver);
  * @param result Output parameter: pointer to NULL-terminated array of pointers to ipasir2_option objects
  * @return ipasir2_errorcode
  * 
- * Required state: <= SOLVING
+ * Required state: <=SOLVING
  * State after: same as before
  */
 IPASIR_API ipasir2_errorcode ipasir2_options(void* solver, ipasir2_option const** result);
@@ -213,7 +205,7 @@ IPASIR_API ipasir2_errorcode ipasir2_options(void* solver, ipasir2_option const*
  *  - IPASIR2_E_INVALID_STATE if the option is not allowed to be set in the current state
  *  - IPASIR2_E_OK otherwise
  * 
- * Required state: <= ipasir2_options[name].max_state
+ * Required state: <=ipasir2_options[name].max_state
  * State after: same as before
  */
 IPASIR_API ipasir2_errorcode ipasir2_set_option(void* solver, char const* name, int64_t index, int64_t value);
@@ -336,8 +328,8 @@ IPASIR_API ipasir2_errorcode ipasir2_failed(void* solver, int32_t lit, int* resu
  * @param callback 
  * @return ipasir2_errorcode
  *
- * Required state: <= INPUT
- * State after: <= INPUT
+ * Required state: <=INPUT
+ * State after: <=INPUT
  */
 IPASIR_API ipasir2_errorcode ipasir2_set_terminate(void* solver, void* data, 
     int (*callback)(void* data));
@@ -374,8 +366,8 @@ IPASIR_API ipasir2_errorcode ipasir2_set_terminate(void* solver, void* data,
  * @param learn 
  * @return ipasir2_errorcode
  * 
- * Required state: <= INPUT
- * State after: <= INPUT
+ * Required state: <=INPUT
+ * State after: <=INPUT
  */
 IPASIR_API ipasir2_errorcode ipasir2_set_export(void* solver, void* data, int max_length, 
     void (*callback)(void* data, int32_t const* clause));
@@ -400,6 +392,10 @@ IPASIR_API ipasir2_errorcode ipasir2_set_export(void* solver, void* data, int ma
  * as given by ipasir2_add() calls.
  * 
  * Solvers must take care of correctness with regard to imported clauses. 
+ * 
+ * Note: Function is eligible to be called in any state.
+ * 
+ * @TODO: State transition cases.
  *
  * @param solver SAT solver
  * @param pledge guarantees about the relationship to the original formula
