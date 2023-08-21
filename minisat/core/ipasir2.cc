@@ -34,6 +34,7 @@ class SolverWrapper {
     Minisat::Lit toMinisatLit(int32_t lit) {
         return Minisat::mkLit(Minisat::Var(abs(lit) - 1), (lit < 0));
     }
+
     
 public:
     SolverWrapper() : assumptions(), clause(), is_failed_assumption(), state(IPASIR2_S_INPUT) {
@@ -114,15 +115,16 @@ public:
     void setLearnCallback(void* state, int32_t max_size, void (*learned)(void* state, int32_t const* clause)) {
         solver->setLearnCallback(state, max_size, learned);
     }
-
-    void setDecisionsLimit(int limit) {
-        solver->setDecisionBudget(limit);
-    }
-
-    void setConflictsLimit(int limit) {
-        solver->setConfBudget(limit);
-    }
 };
+
+void setDecisionBudget(Minisat::Solver* solver, int64_t value) {
+    solver->setDecisionBudget(value);
+}
+
+void setConfBudget(Minisat::Solver* solver, int64_t value) {
+    solver->setConfBudget(value);
+}
+
 
 extern "C" {
 
@@ -145,26 +147,20 @@ extern "C" {
 
     ipasir2_errorcode ipasir2_options(void* solver, ipasir2_option const** options) {
         ipasir2_option* solver_options = new ipasir2_option[3];
-        solver_options[0] = { "ipasir.limits.decisions", -1, INT32_MAX, IPASIR2_S_INPUT, false, false };
-        solver_options[1] = { "ipasir.limits.conflicts", -1, INT32_MAX, IPASIR2_S_INPUT, false, false };
+        solver_options[0] = { "ipasir.limits.decisions", -1, INT32_MAX, IPASIR2_S_INPUT, false, false, (const void*)&setDecisionBudget };
+        solver_options[1] = { "ipasir.limits.conflicts", -1, INT32_MAX, IPASIR2_S_INPUT, false, false, (const void*)&setConfBudget };
         solver_options[2] = { 0 };
         *options = solver_options;
         return IPASIR2_E_OK;
     }
 
-    ipasir2_errorcode ipasir2_set_option(void* solver, const char* name, int64_t index, int64_t value) {
-        if (!strcmp(name, "ipasir.limits.decisions")) { // TODO: per option: bounds check, return error on incorrect values
-            ((SolverWrapper*)solver)->setDecisionsLimit(value);
-            return IPASIR2_E_OK;
-        } 
-        else if (!strcmp(name, "ipasir.limits.conflicts")) {
-            ((SolverWrapper*)solver)->setConflictsLimit(value);
+    ipasir2_errorcode ipasir2_set_option(void* solver, ipasir2_option const* option, int64_t value, int64_t index) {
+        if (option != nullptr && option->handle != nullptr) {
+            void (*setter)(Minisat::Solver* solver, int64_t value) = (void (*)(Minisat::Solver* solver, int64_t value))option->handle;
+            (*setter)((Minisat::Solver*)solver, value);
             return IPASIR2_E_OK;
         }
-        else {
-            return IPASIR2_E_OPTION_UNKNOWN;
-        }
-        return IPASIR2_E_OPTION_UNKNOWN;
+        return IPASIR2_E_UNSUPPORTED_ARGUMENT;
     }
 
     ipasir2_errorcode ipasir2_add(void* solver, int32_t lit_or_zero) {
@@ -206,8 +202,8 @@ extern "C" {
         return IPASIR2_E_OK;
     }
 
-    ipasir2_errorcode ipasir2_set_import(void* solver, void* data, ipasir2_pledge pledge,
-            int32_t const* (*import)(void* data)) {
+    ipasir2_errorcode ipasir2_set_import(void* solver, void* data, ipasir2_redundancy pledge,
+            void (*import)(void* data, int32_t const** clause, ipasir2_redundancy* type)) {
         return IPASIR2_E_UNSUPPORTED;
     }
 
