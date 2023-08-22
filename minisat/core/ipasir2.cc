@@ -117,14 +117,6 @@ public:
     }
 };
 
-void setDecisionBudget(Minisat::Solver* solver, int64_t value) {
-    solver->setDecisionBudget(value);
-}
-
-void setConfBudget(Minisat::Solver* solver, int64_t value) {
-    solver->setConfBudget(value);
-}
-
 
 extern "C" {
 
@@ -147,8 +139,10 @@ extern "C" {
 
     ipasir2_errorcode ipasir2_options(void* solver, ipasir2_option const** options) {
         ipasir2_option* solver_options = new ipasir2_option[3];
-        solver_options[0] = { "ipasir.limits.decisions", -1, INT32_MAX, IPASIR2_S_INPUT, false, false, (const void*)&setDecisionBudget };
-        solver_options[1] = { "ipasir.limits.conflicts", -1, INT32_MAX, IPASIR2_S_INPUT, false, false, (const void*)&setConfBudget };
+        solver_options[0] = { "ipasir.limits.decisions", -1, INT32_MAX, IPASIR2_S_INPUT, false, false, 
+                                (const void*) +[] (Minisat::Solver*  solver, ipasir2_option const* opt, int64_t value) { solver->setDecisionBudget(value); } };
+        solver_options[1] = { "ipasir.limits.conflicts", -1, INT32_MAX, IPASIR2_S_INPUT, false, false, 
+                                (const void*) +[] (Minisat::Solver*  solver, ipasir2_option const* opt, int64_t value) { solver->setConfBudget(value); } };
         solver_options[2] = { 0 };
         *options = solver_options;
         return IPASIR2_E_OK;
@@ -156,8 +150,8 @@ extern "C" {
 
     ipasir2_errorcode ipasir2_set_option(void* solver, ipasir2_option const* option, int64_t value, int64_t index) {
         if (option != nullptr && option->handle != nullptr) {
-            void (*setter)(Minisat::Solver* solver, int64_t value) = (void (*)(Minisat::Solver* solver, int64_t value))option->handle;
-            (*setter)((Minisat::Solver*)solver, value);
+            void (*setter)(Minisat::Solver* solver, ipasir2_option const* opt, int64_t value) = (void (*)(Minisat::Solver* solver, ipasir2_option const* opt, int64_t value))option->handle;
+            (*setter)((Minisat::Solver*)solver, option, value);
             return IPASIR2_E_OK;
         }
         return IPASIR2_E_UNSUPPORTED_ARGUMENT;
