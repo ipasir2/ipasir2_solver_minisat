@@ -157,19 +157,20 @@ extern "C" {
         return IPASIR2_E_UNSUPPORTED_ARGUMENT;
     }
 
-    ipasir2_errorcode ipasir2_add(void* solver, int32_t lit_or_zero) {
-        ((SolverWrapper*)solver)->add(lit_or_zero);
+    ipasir2_errorcode ipasir2_add(void* solver, int32_t const* clause, int32_t len, ipasir2_redundancy type) {
+        for (int i = 0; i < len; i++) {
+            ((SolverWrapper*)solver)->add(clause[i]);
+        }
+        ((SolverWrapper*)solver)->add(0);
         return IPASIR2_E_OK;
     }
 
-    ipasir2_errorcode ipasir2_assume(void* solver, int32_t lit) {
-        ((SolverWrapper*)solver)->assume(lit);
-        return IPASIR2_E_OK;
-    }
-
-    ipasir2_errorcode ipasir2_solve(void* solver, int32_t* status) {
-        *status = ((SolverWrapper*)solver)->solve();
-        if (*status == -1) {
+    ipasir2_errorcode ipasir2_solve(void* solver, int* result, int32_t const* assumps, int32_t len) {
+        for (int i = 0; i < len; i++) {
+            ((SolverWrapper*)solver)->assume(assumps[i]);
+        }
+        *result = ((SolverWrapper*)solver)->solve();
+        if (*result == -1) {
             return IPASIR2_E_UNKNOWN;
         }        
         return IPASIR2_E_OK;
@@ -197,7 +198,7 @@ extern "C" {
     }
 
     ipasir2_errorcode ipasir2_set_import(void* solver, void* data, ipasir2_redundancy pledge,
-            void (*import)(void* data, int32_t const** clause, ipasir2_redundancy* type)) {
+            void (*import)(void* data, ipasir2_redundancy min)) {
         return IPASIR2_E_UNSUPPORTED;
     }
 

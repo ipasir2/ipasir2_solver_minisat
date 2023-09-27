@@ -151,6 +151,10 @@ typedef enum ipasir2_state {
  *      and might change the satisfiability of the formula.
  *      Irredundant clauses might introduce new variables.
  * 
+ *      Pragmatics: In presence of an external theory solver, 
+ *                  clauses which are hard to derive again are marked as irredundent, 
+ *                  such that the solver must keep them.
+ * 
  * @var ipasir2_redundancy::IPASIR2_R_FORGETTABLE
  *  @brief Irredundant but forgettable clauses.
  *  @details The clauses served by the import clause callback are not necessarily redundant
@@ -158,15 +162,26 @@ typedef enum ipasir2_state {
  *      However, the solver is allowed to forget these clauses.
  *      Forgettable clauses might introduce new variables.
  * 
+ *      Pragmatics: In presence of an external theory solver,
+ *                  clauses which are easy to derive again are marked as forgettable,
+ *                  and will be added again if needed.
+ * 
  * @var ipasir2_redundancy::IPASIR2_R_EQUISATISFIABLE
  *  @brief Equisatisfiable clauses.
  *  @details The clauses served by the import clause callback are satisfiability preserving.
  *      Satisfiability preserving clauses might introduce new variables.
  * 
+ *      Pragmatics: In clause sharing parallel portfolios, derived clauses are not 
+ *                  allowed to change the satisfiability of the formula, 
+ *                  but might change the models, e.g. if extended resolution 
+ *                  or blocked clause elimination are allowed.
+ * 
  * @var ipasir2_redundancy::IPASIR2_R_EQUIVALENT
  *  @brief Equivalence preserving clauses.
  *  @details The clauses served by the import clause callback are equivalence preserving.
  *      Equivalence preserving clauses do not introduce new variables.
+ * 
+ *      Pragmatics: Only clauses that preserve the models of the formula are allowed.
  * 
  */
 typedef enum ipasir2_redundancy {
@@ -241,6 +256,7 @@ typedef struct ipasir2_option {
  */
 IPASIR_API ipasir2_errorcode ipasir2_signature(char const** signature);
 
+
 /**
  * @brief Construct a new solver instance and set result to return a pointer to it.
  * @details Use the returned pointer as the first parameter in each of the following functions.
@@ -253,6 +269,7 @@ IPASIR_API ipasir2_errorcode ipasir2_signature(char const** signature);
  * State after: CONFIG
  */
 IPASIR_API ipasir2_errorcode ipasir2_init(void** solver);
+
 
 /**
  * @brief Release the given solver (destructor). 
@@ -268,6 +285,7 @@ IPASIR_API ipasir2_errorcode ipasir2_init(void** solver);
  * State after: undefined
  */
 IPASIR_API ipasir2_errorcode ipasir2_release(void* solver);
+
 
 /** 
  * @brief Return the configuration options which are supported by the solver.
@@ -352,36 +370,27 @@ IPASIR_API ipasir2_errorcode ipasir2_set_option(void* solver, ipasir2_option con
  *          Literals are encoded as (non-zero) integers as in the DIMACS formats.
  * 
  * @param solver The solver instance.
- * @param lit_or_zero The literal to be added to the clause or 0 to finalize the clause.
+ * @param clause The clause of length \p len to be added.
+ * @param len The number of literals in \p clause.
+ * @param redundancy The redundancy type of \p clause with respect to the previously added irredundant clauses. 
+ *                   The redundancy of \p clause affects its required persistency and 
+ *                   its potential impact on solver state consistency.
+ *                   This is mostly relevent when used from the import-callback, e.g., 
+ *                   in the context of parallel SAT solver frameworks or 
+ *                   in case of lazily encoded background theories.
  * 
  * @return IPASIR2_E_OK if the function call was successful.
- *         IPASIR2_E_INVALID_STATE if the solver is in the SOLVING state.
+ *         IPASIR2_E_UNSUPPORTED_ARGUMENT if the redundancy type is generally not supported.
+ *         IPASIR2_E_INVALID_STATE if the redundancy type is not supported in the present state.
  * 
- * Required state: CONFIG <= state < SOLVING
+ * Required state: state <= SOLVING
  * State after: INPUT
  */
-IPASIR_API ipasir2_errorcode ipasir2_add(void* solver, int32_t lit_or_zero);
+IPASIR_API ipasir2_errorcode ipasir2_add(void* solver, int32_t const* clause, int32_t len, ipasir2_redundancy redundancy);
 
 
 /**
- * @brief Add an assumption for the next SAT search. 
- * @details The assumption will be used in the next call of ipasir2_solve(). 
- *          After calling ipasir2_solve() all the previously added assumptions are cleared.
- * 
- * @param solver The solver instance.
- * @param lit The assumption literal.
- * 
- * @return IPASIR2_E_OK if the function call was successful.
- *         IPASIR2_E_INVALID_STATE if the solver is in the SOLVING state.
- *
- * Required state: CONFIG <= state < SOLVING
- * State after: INPUT
- */
-IPASIR_API ipasir2_errorcode ipasir2_assume(void* solver, int32_t lit);
-
-
-/**
- * @brief Solve the formula with specified clauses under the specified assumptions.
+ * @brief Solve the formula with specified clauses under the given assumption \p literals.
  * @details If the formula is satisfiable, the output parameter \p result is set to 10 and the state of the solver is changed to SAT.
  *          If the formula is unsatisfiable, the output parameter \p result is set to 20 and the state of the solver is changed to UNSAT.
  *          If the search is interrupted, the output parameter \p result is set to 0 and the state of the solver is changed to INPUT.
@@ -390,6 +399,8 @@ IPASIR_API ipasir2_errorcode ipasir2_assume(void* solver, int32_t lit);
  *          Callbacks are allowed to call any ipasir2 function which is allowed in the SOLVING state.
  * 
  * @param solver The solver instance.
+ * @param literals Array of assumptions literals (can be nullptr in case of no assumptions).
+ * @param len The number of assumptions in \p literals (zero if \p literals is nullptr).
  * @param result After successful execution, the output parameter points to the result of the SAT search.
  *               The result is one of the following values:
  *                  - 0: The search was interrupted.
@@ -402,7 +413,7 @@ IPASIR_API ipasir2_errorcode ipasir2_assume(void* solver, int32_t lit);
  * Required state: CONFIG <= state < SOLVING
  * State after: INPUT or SAT or UNSAT
  */
-IPASIR_API ipasir2_errorcode ipasir2_solve(void* solver, int* result);
+IPASIR_API ipasir2_errorcode ipasir2_solve(void* solver, int* result, int32_t const* literals, int32_t len);
 
 
 /**
@@ -504,26 +515,30 @@ IPASIR_API ipasir2_errorcode ipasir2_set_export(void* solver, void* data, int ma
 /**
  * @brief Sets a callback for asynchronously sending clauses to the solver. 
  * @details The solver calls this function periodically while being in SOLVING state.
- *          The callback function sets its output parameter \p clause to the next clause to be imported, 
- *          which is given as a pointer to a zero terminated integer array.
- *          The callback function sets \p clause to nullptr if there is no further clause to import. 
- *          The pointer to the clause must be valid until the next call to the callback function 
- *          or until ipasir2_solve() terminates, whichever happens first.
- *          The application has the responsibility to appropriately buffer the clauses
- *          until the solver decides to import (some of) them via the callback.
  *          Subsequent calls to ipasir2_set_import() override the previously set callback function.
  *          Setting the callback function to nullptr disables the callback.
- *          Applications give a pledge about the relationship of the imported clauses to the original formula.
- *          The pledge is given as the parameter \p pledge.
- *          The callback function sets its output parameter \p type to the redundancy type of the clause.
- *          The redundancy type of the imported clause must be at least as strong as 
- *          the pledge given in the setter, i.e., \p type >= \p pledge.
  *          \p callback is called with the same value for parameter \p data as the one passed to ipasir2_set_import().
+ * 
+ *          The application has the responsibility to appropriately buffer the clauses
+ *          until the solver decides to import (some of) them via the callback.
+ *          The callback function sets its output parameter \p clause to the next clause to be imported, 
+ *          which is given as a pointer to a zero terminated integer array, 
+ *          or to nullptr if there is no further clause to import. 
+ *          The pointer to the \p clause must be valid until the next call to the callback function 
+ *          or until ipasir2_solve() terminates, whichever happens first.
+ * 
+ *          Applications give a \p pledge about the minimum redundancy type of the imported clauses.
+ *          Solvers can reject too weak redundancy types by returning IPASIR2_E_UNSUPPORTED_ARGUMENT.
+ *          The redundancy type of any imported clause must be at least as strong pledged.
+ *          The callback function sets \p type to the actual redundancy type of the clause.
  *          
  * @param solver The solver instance.
  * @param data Opaque pointer passed to the callback function as the first parameter.
- * @param pledge Guarantee on the minimum redundancy type of the clauses to be imported.
- * @param callback The clause import callback function of the form "void callback(void* data, int32_t const** clause, ipasir2_redundancy* type)".
+ * @param pledge Promise on the minimum redundancy type of the clauses to be imported.
+ * @param callback The clause import callback function of the form "void callback(void* data, ipasir2_redundancy min)".
+ *                 The callback() uses ipasir2_add() at most once to import a clause of the redundancy type given by \p min.
+ *                 To import more than one clause, the callback() must be called multiple times.
+ *                 If there is no further clause of the given redundancy type to be imported, the callback() returns without calling ipasir2_add().
  * 
  * @return IPASIR2_E_OK if the function call was successful.
  *         IPASIR2_E_UNSUPPORTED if the solver does not support clause import callbacks.
@@ -534,7 +549,7 @@ IPASIR_API ipasir2_errorcode ipasir2_set_export(void* solver, void* data, int ma
  * State after: same as before
  */
 IPASIR_API ipasir2_errorcode ipasir2_set_import(void* solver, void* data, ipasir2_redundancy pledge, 
-    void (*callback)(void* data, int32_t const** clause, ipasir2_redundancy* type));
+    void (*callback)(void* data, ipasir2_redundancy min));
 
 
 /**
