@@ -2,6 +2,7 @@
 // #define __STDC_FORMAT_MACROS
 
 
+#include <limits>
 #include <vector>
 #include "Solver.h"
 #include "ipasir2.h"
@@ -137,14 +138,23 @@ extern "C" {
         return IPASIR2_E_OK;
     }
 
-    ipasir2_errorcode ipasir2_options(void* solver, ipasir2_option const** options) {
-        ipasir2_option* solver_options = new ipasir2_option[3];
-        solver_options[0] = { "ipasir.limits.decisions", -1, INT32_MAX, IPASIR2_S_INPUT, false, false, 
-                                (const void*) +[] (Minisat::Solver*  solver, ipasir2_option const* opt, int64_t value) { solver->setDecisionBudget(value); } };
-        solver_options[1] = { "ipasir.limits.conflicts", -1, INT32_MAX, IPASIR2_S_INPUT, false, false, 
-                                (const void*) +[] (Minisat::Solver*  solver, ipasir2_option const* opt, int64_t value) { solver->setConfBudget(value); } };
-        solver_options[2] = { 0 };
-        *options = solver_options;
+    ipasir2_errorcode ipasir2_options(void *solver, ipasir2_option const **options)
+    {
+        static std::vector<ipasir2_option> const option_defs = {
+            {"ipasir.limits.decisions", -1, std::numeric_limits<int64_t>::max(), IPASIR2_S_INPUT, 0, 0,
+             reinterpret_cast<void*>(+[](Minisat::Solver *solver, ipasir2_option const *opt, int64_t value) {
+                solver->setDecisionBudget(value);
+             })
+            },
+            {"ipasir.limits.conflicts", -1, std::numeric_limits<int64_t>::max(), IPASIR2_S_INPUT, 0, 0,
+             reinterpret_cast<void*>(+[](Minisat::Solver *solver, ipasir2_option const *opt, int64_t value) {
+                solver->setConfBudget(value);
+             })
+            },
+            {nullptr, 0, 0, IPASIR2_S_CONFIG, 0, 0, nullptr}
+        };
+
+        *options = option_defs.data();
         return IPASIR2_E_OK;
     }
 
